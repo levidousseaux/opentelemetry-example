@@ -1,0 +1,13 @@
+Prometheus:
+10915
+11467
+10427
+11609
+
+Loki:
+12611
+
+
+sum(rate(http_requests_received_total{instance =~ "$instances", controller =~ "$controllers"}[3m])) by (controller)
+
+sum(rate(http_request_duration_seconds_bucket{host =~ "$instances"}[5m])) by (host)
