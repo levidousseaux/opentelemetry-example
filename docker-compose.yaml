@@ -1,4 +1,9 @@
 services:
+  auth-api:
+    build: api/Auth.Api
+    ports:
+      - 80:80
+
   loki:
     image: grafana/loki:master
     ports:
@@ -7,6 +12,8 @@ services:
 
   prometheus:
     image: prom/prometheus:master
+    depends_on:
+      - auth-api
     volumes:
       - ./prometheus:/etc/prometheus
     ports:
@@ -23,8 +30,6 @@ services:
       - ./grafana/data:/var/lib/grafana
     ports:
       - "3000:3000"
-
-  auth-api:
-    build: Auth/Auth.Api
-    ports:
-      - 4500:80
+    depends_on:
+      - loki
+      - prometheus

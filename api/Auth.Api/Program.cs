@@ -1,26 +1,19 @@
-using Prometheus;
-using Serilog;
-using Serilog.Sinks.Grafana.Loki;
+using Auth.Api.Configurations;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
-builder.Host.UseSerilog((ctx, lc) => lc
-    .WriteTo.GrafanaLoki("http://localhost:3100", new List<LokiLabel>{ new(){Key = "dotnet", Value = "auth-api"}})
-    .WriteTo.Console());
+builder.Services.AddPrometheus();
+builder.Host.AddLoki();
 
 var app = builder.Build();
 
 app.UseSwagger();
 app.UseSwaggerUI();
-
-app.UseMetricServer();
-app.UseHttpMetrics();
-
 app.UseHttpsRedirection();
 app.UseAuthorization();
+app.UsePrometheus();
 app.MapControllers();
 app.Run();
