@@ -18,7 +18,7 @@ public class CepController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> ObterCep(string cep)
     {
-        _logger.LogTrace($"Obtendo cep {cep}");
+        _logger.LogWarning($"Obtendo cep {cep}!!!");
 
         cep = cep.Trim().Replace("-", "");
 

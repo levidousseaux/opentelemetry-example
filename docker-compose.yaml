@@ -1,26 +1,35 @@
 services:
-  auth-api:
-    build: api/Auth.Api
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    volumes:
+      - ./jaeger/data:/badger
+    environment:
+      - SPAN_STORAGE_TYPE=badger
+      - BADGER_EPHEMERAL=false
+      - BADGER_DIRECTORY_VALUE=/badger/data
+      - BADGER_DIRECTORY_KEY=/badger/key
     ports:
-      - 80:80
+      - "6831:6831/udp"
+      - "16686:16686"
 
   loki:
-    image: grafana/loki:master
+    image: grafana/loki:latest
+    volumes:
+      - ./loki/data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
     ports:
       - "3100:3100"
-    command: -config.file=/etc/loki/local-config.yaml
 
   prometheus:
-    image: prom/prometheus:master
-    depends_on:
-      - auth-api
+    image: prom/prometheus:latest
     volumes:
-      - ./prometheus:/etc/prometheus
+      - ./prometheus/config:/etc/prometheus
+      - ./prometheus/data:/prometheus
     ports:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:master
+    image: grafana/grafana:latest
     environment:
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
       - GF_AUTH_ANONYMOUS_ENABLED=true
@@ -33,3 +42,4 @@ services:
     depends_on:
       - loki
       - prometheus
+      - jaeger

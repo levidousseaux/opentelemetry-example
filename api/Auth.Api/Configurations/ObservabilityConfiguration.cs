@@ -1,30 +1,70 @@
-﻿using Prometheus;
-using Prometheus.DotNetRuntime;
+﻿using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Sinks.Grafana.Loki;
+using System.Reflection;
 
 namespace Auth.Api.Configurations;
 
 public static class ObservabilityConfiguration
 {
-    public static void AddPrometheus(this IServiceCollection services)
+    public const string ServiceName = "auth-api";
+
+    public static void AddOpenTelemetry(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddHealthChecks().AddCheck<HealthCheck>(nameof(HealthCheck)).ForwardToPrometheus();
-        services.AddHttpClient("").UseHttpClientMetrics();
-        IDisposable collector = DotNetRuntimeStatsBuilder.Default().StartCollecting();
+        var resourceBuilder = GetResourceBuilder();
+
+        services.AddOpenTelemetryTracing(telemetry =>
+        {
+            telemetry
+                .AddSource(ServiceName)
+                .SetResourceBuilder(resourceBuilder)
+                .AddHttpClientInstrumentation()
+                .AddAspNetCoreInstrumentation()
+                .AddSqlClientInstrumentation()
+                .SetSampler(new AlwaysOnSampler())
+                .AddJaegerExporter(jaegerOptions =>
+                {
+                    jaegerOptions.AgentHost = configuration.GetValue<string>("Jaeger:Host");
+                    jaegerOptions.AgentPort = configuration.GetValue<int>("Jaeger:Port");
+                });
+        });
+
+        services.AddOpenTelemetryMetrics(builder =>
+        {
+            builder
+                .SetResourceBuilder(resourceBuilder)
+                .AddPrometheusExporter()
+                .AddHttpClientInstrumentation()
+                .AddAspNetCoreInstrumentation()
+                .AddRuntimeInstrumentation();
+        });
     }
 
-    public static void AddLoki(this IHostBuilder host)
+    public static void AddSerilog(this IHostBuilder host)
     {
+        var lokiLabels = new List<LokiLabel>
+        {
+            new LokiLabel { Key = "services", Value = ServiceName }
+        };
+
+        var propertiesLabels = new List<string> { "level", "MachineName" };
+
         host.UseSerilog((ctx, lc) => lc
-            .WriteTo.GrafanaLoki("http://loki:3100", new List<LokiLabel> { new() { Key = "dotnet", Value = "auth-api" } })
+            .MinimumLevel.Warning()
+            .Enrich.WithMachineName()
+            .WriteTo.GrafanaLoki("http://localhost:3100", lokiLabels, propertiesLabels)
             .WriteTo.Console()
         );
     }
 
-    public static void UsePrometheus(this WebApplication app)
+    private static ResourceBuilder GetResourceBuilder()
     {
-        app.UseHttpMetrics();
-        app.UseMetricServer();
+        var assemblyVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
+
+        return ResourceBuilder
+            .CreateDefault()
+            .AddService(ServiceName, serviceVersion: assemblyVersion, serviceInstanceId: Environment.MachineName);
     }
 }
